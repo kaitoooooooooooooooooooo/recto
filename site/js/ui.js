@@ -1,11 +1,13 @@
-// Petits outils d'interface : création d'éléments (le texte reste du texte), messages, dialogue.
+// Petits outils d'interface : création d'éléments (le texte reste du texte, jamais du HTML),
+// messages, dialogue.
 export function h(tag, props, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(props || {})) {
     if (v == null || v === false) continue;
     if (k === 'class') el.className = v;
     else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
-    else if (k === 'html') el.innerHTML = v; // icônes statiques uniquement
+    // Style passé par le CSSOM : la politique de sécurité interdit les attributs style="…".
+    else if (k === 'style') el.style.cssText = v;
     else if (v === true) el.setAttribute(k, '');
     else el.setAttribute(k, v);
   }
@@ -66,9 +68,9 @@ export function ring({ size = 56, stroke = 4, cls = '' } = {}) {
   const center = h('span', { class: 'ring-label' });
   const el = h('div', { class: `ring ${cls}`.trim(), role: 'img' }, svg, center);
   el.style.width = el.style.height = `${size}px`;
-  let last = 0;
+  let last = 0, gen = 0;
   const replay = (name) => { el.classList.remove(name); void el.offsetWidth; el.classList.add(name); };
-  el.set = (v, v2 = v, fx = true) => {
+  const apply = (v, v2, fx) => {
     v = clamp01(v); v2 = Math.max(v, clamp01(v2));
     main.style.strokeDashoffset = String(c * (1 - v));
     soft.style.strokeDashoffset = String(c * (1 - v2));
@@ -77,8 +79,14 @@ export function ring({ size = 56, stroke = 4, cls = '' } = {}) {
     last = v;
     return el;
   };
-  // Part de zéro et s'anime une fois à l'écran.
-  el.show = (v, v2 = v, fx = false) => { requestAnimationFrame(() => requestAnimationFrame(() => el.set(v, v2, fx))); return el; };
+  el.set = (v, v2 = v, fx = true) => { gen++; return apply(v, v2, fx); };
+  // Part de zéro et s'anime une fois à l'écran. Si une valeur plus récente arrive entre-temps
+  // (onglet en arrière-plan : les images ne s'y calculent pas), l'animation de départ s'efface.
+  el.show = (v, v2 = v, fx = false) => {
+    const g = ++gen;
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (g === gen) apply(v, v2, fx); }));
+    return el;
+  };
   el.label = (...kids) => { center.replaceChildren(...kids.flat().filter((k) => k != null && k !== false)); return el; };
   el.describe = (text) => { el.setAttribute('aria-label', text); return el; };
   return el;

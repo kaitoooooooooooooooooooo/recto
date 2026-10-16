@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// Règles de la base Firestore de Recto : chacun ne lit et n'écrit que ses propres listes,
+// rangées sous users/{son identifiant}/sets/{liste}. Une liste = la liste entière en JSON
+// (`data`) et sa date de modification (`updated`, en millisecondes). Une version plus ancienne
+// ne peut pas en écraser une plus récente (l'appareil reçoit alors la version du serveur).
+// À coller dans la console Firebase : Firestore Database → Règles → Publier.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid}/sets/{setId} {
+      function owner() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+      function valid() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['data', 'updated'])
+          && d.data is string && d.data.size() <= 800000
+          && d.updated is int
+          && setId.matches('^[A-Za-z0-9_-]{6,40}$');
+      }
+
+      allow read, delete: if owner();
+      allow create: if owner() && valid();
+      allow update: if owner() && valid() && request.resource.data.updated >= resource.data.updated;
+    }
+
+    // Tout le reste est fermé.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -42,11 +42,13 @@ site/                 l'application, telle qu'elle est mise en ligne
     learn.js          niveaux, paliers, manches, mélange
     achievements.js   mini-succès
     marks.js          favoris et cartes difficiles
-    store.js, api.js  enregistrement (navigateur ou compte)
+    store.js          enregistrement (navigateur ou compte)
+    backend.js        Firebase ou API PHP, selon config.js (backends/firebase.js, backends/php.js)
     views/            un écran par fichier (accueil, import, liste, Cartes, Apprendre, compte)
   api/                API PHP : comptes et listes (SQLite)
   fonts/              Archivo et IBM Plex Mono (licence OFL)
-tests/                tests (node:test) : logique et API
+tests/                tests (node:test) : logique, API PHP, comptes Firebase (contre un faux Firebase)
+firestore.rules       règles de sécurité de la base Firestore
 ```
 
 ## En local
@@ -64,18 +66,46 @@ garder ailleurs, définir `RECTO_DATA_DIR` (par exemple un dossier `.local-data/
 npm test
 ```
 
-Les tests lancent l'API sur une base jetable, dans un dossier temporaire.
+Les tests lancent l'API PHP sur une base jetable (dossier temporaire) et vérifient les comptes Firebase
+contre un faux Firebase en mémoire qui applique les mêmes règles que `firestore.rules`.
+
+## Comptes : Firebase ou PHP
+
+Les comptes (et la synchronisation des listes entre appareils) peuvent passer par :
+
+- **Firebase** (gratuit, formule Spark) : le site peut être un simple hébergement **statique**.
+  Recto parle directement à Firebase Authentication (e-mail + mot de passe, « mot de passe oublié »
+  inclus) et à Firestore, par leurs API REST, sans bibliothèque. Il suffit de remplir
+  `site/js/config.js` (`apiKey`, `projectId`) ; ces valeurs ne sont pas secrètes.
+- **l'API PHP** de `site/api/` (si `config.js` est vide) : il faut alors PHP 8.1+ et HTTPS.
+
+### Créer le projet Firebase
+
+1. <https://console.firebase.google.com> → **Créer un projet** (Google Analytics inutile).
+2. **Authentication** → Commencer → Mode de connexion → **Adresse e-mail/Mot de passe** → Activer.
+3. **Firestore Database** → Créer une base de données → emplacement **europe-west6 (Zurich)**
+   (ou un autre proche) → mode production.
+4. Firestore → **Règles** : remplacer par le contenu de [`firestore.rules`](firestore.rules) → Publier.
+5. Paramètres du projet (roue dentée) → Vos applications → icône **Web** `</>` → enregistrer l'app,
+   puis recopier `apiKey` et `projectId` de `firebaseConfig` dans `site/js/config.js`.
+6. Conseillé : dans Google Cloud (APIs et services → Identifiants), limiter la clé du navigateur aux
+   sites de Recto (par exemple `https://kaito-lab.ch/*` et `http://localhost:*`).
+
+Chaque liste est un document `users/{uid}/sets/{id}` (la liste en JSON et sa date). Les règles ne
+laissent chacun accéder qu'à ses propres listes et refusent qu'une version plus ancienne en écrase
+une plus récente : l'appareil en retard reçoit alors la version du serveur.
 
 ## Mise en ligne
 
-Copier le contenu de `site/` dans un dossier du site (par exemple `/recto/`) sur un hébergement
-Apache avec PHP 8.1+. Les fichiers `.htaccess` protègent le code de l'API et le dossier des données.
+Copier le contenu de `site/` dans un dossier du site (par exemple `/recto/`). Avec Firebase, un
+hébergement statique suffit ; avec l'API PHP, il faut Apache et PHP 8.1+. Les fichiers `.htaccess`
+protègent le code de l'API, le dossier des données, et posent la politique de sécurité de la page.
 
-- **HTTPS est obligatoire pour les comptes** : sans lui, l'API refuse de répondre (les mots de passe
-  circuleraient en clair) et l'application fonctionne sans compte.
-- Ne jamais déposer `api/data/` d'une autre machine : la base et la clé secrète y sont créées sur le
+- **HTTPS est obligatoire pour les comptes** : avec PHP, l'API refuse de répondre sans lui (les mots
+  de passe circuleraient en clair) et l'application fonctionne sans compte.
+- (PHP) Ne jamais déposer `api/data/` d'une autre machine : la base et la clé secrète y sont créées sur le
   serveur, au premier compte.
-- La base contient les comptes (mots de passe hachés avec Argon2id), les sessions (seule leur
+- (PHP) La base contient les comptes (mots de passe hachés avec Argon2id), les sessions (seule leur
   empreinte est gardée) et les listes. Pas d'e-mail envoyé, pas de traceur.
 
 ## Sécurité, en bref

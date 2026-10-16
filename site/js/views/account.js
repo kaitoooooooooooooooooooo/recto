@@ -15,6 +15,10 @@ const ERR = {
   network: 'Pas de connexion au serveur.',
   https_required: 'Les comptes ne fonctionnent qu’en connexion sécurisée (https).',
   server_error: 'Erreur du serveur. Réessaie plus tard.',
+  not_configured: 'Les comptes ne sont pas encore configurés sur ce site.',
+  forbidden: 'Le serveur a refusé l’opération.',
+  bad_request: 'Demande refusée par le serveur. Vérifie ce que tu as saisi.',
+  not_logged_in: 'Ta session a expiré : reconnecte-toi.',
 };
 const msg = (code) => ERR[code] || ERR.server_error;
 
@@ -31,7 +35,8 @@ export function renderAccount(ctx) {
       h('p', { class: 'lede narrow' }, 'Elles ne sont pas perdues : dès que les comptes fonctionneront, connecte-toi depuis cet appareil et elles rejoindront ton compte. N’efface pas les données de ce site dans le navigateur d’ici là.'));
     return;
   }
-  const mode = ctx.query.get('m') === 'inscription' ? 'register' : 'login';
+  const kind = store.accountKind();
+  const mode = ctx.query.get('m') === 'inscription' ? 'register' : ctx.query.get('m') === 'oubli' && kind.canResetPassword ? 'reset' : 'login';
   const general = h('p', { class: 'form-error', role: 'alert' });
   const showErrors = (form, err) => {
     form.querySelectorAll('.field-error').forEach((el) => { el.textContent = ''; });
@@ -45,7 +50,25 @@ export function renderAccount(ctx) {
   };
 
   let form;
-  if (mode === 'register') {
+  if (mode === 'reset') {
+    // Mot de passe oublié : le service des comptes envoie un lien pour en choisir un nouveau.
+    const email = h('input', { id: 'f-email', type: 'email', autocomplete: 'email', required: true, maxlength: 190 });
+    const sent = h('p', { class: 'lede narrow', hidden: true }, 'Si un compte existe avec cette adresse, un e-mail vient de partir avec un lien pour choisir un nouveau mot de passe. Pense à regarder dans les indésirables.');
+    form = h('form', {
+      class: 'auth',
+      onsubmit: async (e) => {
+        e.preventDefault();
+        const btn = form.querySelector('button[type=submit]');
+        btn.disabled = true;
+        try { await store.resetPassword(email.value); sent.hidden = false; general.textContent = ''; } catch (err) { showErrors(form, err); }
+        btn.disabled = false;
+      },
+    },
+    field('f-email', 'Adresse e-mail du compte', email),
+    general, sent,
+    h('button', { class: 'btn primary block', type: 'submit' }, 'Envoyer le lien'),
+    h('p', { class: 'switch label' }, h('a', { href: '#/compte' }, 'Retour à la connexion')));
+  } else if (mode === 'register') {
     const username = h('input', { id: 'f-username', type: 'text', autocomplete: 'username', required: true, maxlength: 20 });
     const email = h('input', { id: 'f-email', type: 'email', autocomplete: 'email', required: true, maxlength: 190 });
     const password = h('input', { id: 'f-password', type: 'password', autocomplete: 'new-password', required: true, minlength: 8 });
@@ -65,7 +88,7 @@ export function renderAccount(ctx) {
     h('button', { class: 'btn primary block', type: 'submit' }, 'Créer mon compte'),
     h('p', { class: 'switch label' }, 'Déjà un compte ? ', h('a', { href: '#/compte' }, 'Se connecter')));
   } else {
-    const login = h('input', { id: 'f-login', type: 'text', autocomplete: 'username', required: true });
+    const login = h('input', { id: 'f-login', type: kind.loginType, autocomplete: kind.loginType === 'email' ? 'email' : 'username', required: true });
     const password = h('input', { id: 'f-password', type: 'password', autocomplete: 'current-password', required: true });
     form = h('form', {
       class: 'auth',
@@ -76,15 +99,16 @@ export function renderAccount(ctx) {
         try { done(await store.login(login.value, password.value)); } catch (err) { showErrors(form, err); btn.disabled = false; }
       },
     },
-    field('f-login', 'Pseudo ou adresse e-mail', login),
+    field('f-login', kind.loginLabel, login),
     field('f-password', 'Mot de passe', password),
     general,
     h('button', { class: 'btn primary block', type: 'submit' }, 'Se connecter'),
+    kind.canResetPassword ? h('p', { class: 'switch label' }, h('a', { href: '#/compte?m=oubli' }, 'Mot de passe oublié ?')) : null,
     h('p', { class: 'switch label' }, 'Pas encore de compte ? ', h('a', { href: '#/compte?m=inscription' }, 'Créer un compte')));
   }
   ctx.root.append(
-    h('section', { class: 'page-head' }, h('h1', {}, mode === 'register' ? 'Créer un compte' : 'Se connecter')),
-    h('p', { class: 'lede narrow' }, 'Avec un compte, tes listes et ta progression te suivent sur tous tes appareils. Les listes faites sans compte sur cet appareil y sont ajoutées.'),
+    h('section', { class: 'page-head' }, h('h1', {}, { register: 'Créer un compte', reset: 'Mot de passe oublié', login: 'Se connecter' }[mode])),
+    mode === 'reset' ? null : h('p', { class: 'lede narrow' }, 'Avec un compte, tes listes et ta progression te suivent sur tous tes appareils. Les listes faites sans compte sur cet appareil y sont ajoutées.'),
     form);
   form.querySelector('input').focus();
 }

@@ -1,19 +1,22 @@
 // Les listes et la progression. Sans compte : dans ce navigateur (localStorage).
-// Avec un compte : sur le serveur, enregistrées une seconde après chaque changement ;
-// si un autre appareil a enregistré plus récemment, sa version remplace la nôtre.
-import { api, ApiError } from './api.js';
+// Avec un compte : sur le serveur (Firebase ou l'API PHP, voir backend.js), enregistrées une
+// seconde après chaque changement ; si un autre appareil a enregistré plus récemment, sa version
+// remplace la nôtre.
+import { ApiError } from './api.js';
+import { backend } from './backend.js';
 
 // Clés d'origine (l'app s'appelait « Fiches ») : les garder, sinon les listes déjà enregistrées
 // dans les navigateurs disparaîtraient. Idem pour les réglages des modes Cartes et Apprendre.
 const LOCAL = 'fiches:sets';
 let user = null;
-let available = true;  // false : pas d'API (fichiers ouverts sans serveur, ou HTTPS manquant)
+let available = true;  // false : pas de comptes (serveur absent ou sans PHP, HTTPS manquant…)
 let sets = [];
 const listeners = new Set();
 const timers = new Map();
 
 export const currentUser = () => user;
 export const accountsAvailable = () => available;
+export const accountKind = () => backend;  // libellés et possibilités propres à chaque façon de faire
 export const allSets = () => sets;
 export const getSet = (id) => sets.find((s) => s.id === id) || null;
 export const onChange = (f) => { listeners.add(f); return () => listeners.delete(f); };
@@ -34,15 +37,15 @@ function writeLocal() {
 
 export async function init() {
   try {
-    user = (await api('me')).user;
+    user = await backend.me();
   } catch (e) {
     user = null;
-    available = !(e instanceof ApiError) || !['network', 'no_api', 'https_required'].includes(e.code);
+    available = !(e instanceof ApiError) || !['network', 'no_api', 'https_required', 'not_configured'].includes(e.code);
   }
   if (user) {
     // Des listes faites ici pendant une panne du serveur attendent encore dans le navigateur.
     if (readLocal().length) { await adopt(user).catch(() => {}); return; }
-    try { sets = (await api('sets')).sets; } catch { sets = []; }
+    try { sets = await backend.listSets(); } catch { sets = []; }
   } else {
     sets = readLocal();
   }
@@ -67,8 +70,8 @@ async function push(id, { leaving = false } = {}) {
   const set = getSet(id);
   if (!set || !user) return;
   try {
-    const body = { set };
-    await api('set', { method: 'PUT', body, keepalive: leaving && JSON.stringify(body).length < 60_000 });
+    // keepalive : l'envoi part même si la page se ferme (petits envois seulement).
+    await backend.saveSet(set, { keepalive: leaving && JSON.stringify(set).length < 60_000 });
   } catch (e) {
     if (e.code === 'newer_on_server' && e.set) { Object.assign(set, e.set); sort(); emit(); }
     else if (e.code === 'not_logged_in') { user = null; emit(); }
@@ -102,7 +105,7 @@ export async function deleteSet(id) {
   clearTimeout(timers.get(id));
   timers.delete(id);
   emit();
-  if (user) await api('set/delete', { method: 'POST', body: { id } }).catch(() => {});
+  if (user) await backend.deleteSet(id).catch(() => {});
   else writeLocal();
 }
 
@@ -112,33 +115,32 @@ async function adopt(u) {
   const local = readLocal();
   let moved = 0;
   for (const s of local) {
-    try { await api('set', { method: 'PUT', body: { set: { ...s, updated: Date.now() } } }); moved++; } catch { /* liste invalide ou trop grande */ }
+    try { await backend.saveSet({ ...s, updated: Date.now() }); moved++; } catch { /* liste invalide ou trop grande */ }
   }
   if (moved === local.length) localStorage.removeItem(LOCAL);
-  sets = (await api('sets')).sets;
+  sets = await backend.listSets();
   sort();
   emit();
   return moved;
 }
 
 export async function register(username, email, password) {
-  const r = await api('register', { method: 'POST', body: { username, email, password } });
-  return adopt(r.user);
+  return adopt(await backend.register(username, email, password));
 }
 export async function login(loginName, password) {
-  const r = await api('login', { method: 'POST', body: { login: loginName, password } });
-  return adopt(r.user);
+  return adopt(await backend.login(loginName, password));
 }
+export const resetPassword = (email) => backend.resetPassword(email);
 export async function logout() {
   await flush();
-  await api('logout', { method: 'POST' }).catch(() => {});
+  await backend.logout();
   user = null;
   sets = readLocal();
   sort();
   emit();
 }
 export async function deleteAccount(password) {
-  await api('account/delete', { method: 'POST', body: { password } });
+  await backend.deleteAccount(password);
   user = null;
   sets = readLocal();
   emit();

@@ -8,8 +8,9 @@
   <FilesMatch "\.(html|js|css)$">
     Header set Cache-Control "no-cache"
   </FilesMatch>
-  # Rien d'autre que ce site ne peut s'exécuter dans la page.
+  # Rien d'autre que ce site ne peut s'exécuter dans la page ; les seules connexions vers l'extérieur
+  # sont celles des comptes Firebase (connexion, renouvellement de session, base Firestore).
   <FilesMatch "\.html$">
-    Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
   </FilesMatch>
 </IfModule>

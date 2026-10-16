@@ -88,8 +88,13 @@ Les comptes (et la synchronisation des listes entre appareils) peuvent passer pa
 4. Firestore → **Règles** : remplacer par le contenu de [`firestore.rules`](firestore.rules) → Publier.
 5. Paramètres du projet (roue dentée) → Vos applications → icône **Web** `</>` → enregistrer l'app,
    puis recopier `apiKey` et `projectId` de `firebaseConfig` dans `site/js/config.js`.
-6. Conseillé : dans Google Cloud (APIs et services → Identifiants), limiter la clé du navigateur aux
-   sites de Recto (par exemple `https://kaito-lab.ch/*` et `http://localhost:*`).
+6. Conseillé : limiter la clé aux sites de Recto. Google Cloud → APIs et services → Identifiants →
+   « Browser key (auto created by Firebase) » → Restrictions relatives aux applications : **Sites Web**,
+   une ligne par adresse où l'app est servie (avec et sans `www`, en `http` et en `https` tant que
+   le site ne redirige pas vers une seule adresse), plus les ports utilisés en local, par exemple
+   `https://kaito-lab.ch/*`, `https://www.kaito-lab.ch/*`, `http://kaito-lab.ch/*`,
+   `http://www.kaito-lab.ch/*`, `http://localhost:5190/*`, `http://localhost:5191/*`.
+   Ne pas toucher aux restrictions d'API posées par Firebase. Effet après quelques minutes.
 
 Chaque liste est un document `users/{uid}/sets/{id}` (la liste en JSON et sa date). Les règles ne
 laissent chacun accéder qu'à ses propres listes et refusent qu'une version plus ancienne en écrase

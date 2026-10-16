@@ -5,6 +5,6 @@
 // Ces deux valeurs ne sont pas secrètes : elles désignent le projet. Ce sont les règles Firestore
 // (firestore.rules, à la racine du dépôt) qui protègent les données de chacun.
 export const FIREBASE = {
-  apiKey: '',
-  projectId: '',
+  apiKey: 'AIzaSyDVRmn-Fv3QOtLqzUuzKu783Po8ciDBi1U',
+  projectId: 'recto-76dc5',
 };

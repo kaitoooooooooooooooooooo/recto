@@ -1,0 +1,15 @@
+# Recto — les modules JS se chargent les uns les autres : on revalide à chaque visite
+# (sinon un ancien fichier en cache côté visiteur peut se mélanger à une nouvelle version).
+<IfModule mod_expires.c>
+  ExpiresActive Off
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|css)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  # Rien d'autre que ce site ne peut s'exécuter dans la page.
+  <FilesMatch "\.html$">
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+  </FilesMatch>
+</IfModule>

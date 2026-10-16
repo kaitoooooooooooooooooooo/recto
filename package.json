@@ -1,0 +1,10 @@
+{
+  "name": "recto",
+  "private": true,
+  "type": "module",
+  "description": "Recto : révision de listes de mots, en mode Cartes et Apprendre. JavaScript sans dépendance, API PHP + SQLite.",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "dev": "php -S localhost:5191 -t site"
+  }
+}

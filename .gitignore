@@ -1,0 +1,12 @@
+# Données locales : base SQLite, clé secrète, compte de test (jamais dans le dépôt)
+.local-data/
+site/api/data/*
+!site/api/data/.htaccess
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+secret.key
+
+node_modules/
+.DS_Store
+Thumbs.db

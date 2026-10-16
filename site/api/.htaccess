@@ -1,0 +1,6 @@
+# Seul index.php se visite ; lib.php n'est qu'une bibliothèque.
+<Files "lib.php">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+</Files>
